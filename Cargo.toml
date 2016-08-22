@@ -1,0 +1,7 @@
+[package]
+name = "scheming-sun"
+version = "0.1.0"
+authors = ["Layl <LaylConway@users.noreply.github.com>"]
+
+[dependencies]
+sc-frontend = {path="lib/sc-frontend"}
