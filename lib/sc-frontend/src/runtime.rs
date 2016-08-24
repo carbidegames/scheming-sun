@@ -1,9 +1,10 @@
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use cgmath;
 use winit;
 use vulkano;
 use vulkano::buffer::cpu_access::CpuAccessibleBuffer;
+use vulkano::command_buffer::PrimaryCommandBufferBuilder;
 use vulkano::device::Device;
 use vulkano::framebuffer::Framebuffer;
 use vulkano::pipeline::GraphicsPipeline;
@@ -11,6 +12,27 @@ use vulkano::pipeline::vertex::TwoBuffersDefinition;
 use vulkano_win::{self, VkSurfaceBuild};
 use teapot;
 use {vs, fs};
+
+pub fn frontend_runtime() {
+    let mut runtime = FrontendRuntime::init();
+
+    let mut last = SystemTime::now();
+    let mut frame_counter = 0;
+
+    loop {
+        if !runtime.handle_events() { return; }
+
+        runtime.render();
+
+        frame_counter += 1;
+        let now = SystemTime::now();
+        if now.duration_since(last).unwrap() >= Duration::new(1, 0) {
+            println!("FPS: {}", frame_counter);
+            frame_counter = 0;
+            last = now;
+        }
+    }
+}
 
 mod renderpass {
     single_pass_renderpass!{
@@ -91,7 +113,7 @@ impl FrontendRuntime {
             let caps = window.surface().get_capabilities(&physical).expect("failed to get surface capabilities");
 
             let dimensions = caps.current_extent.unwrap_or([1280, 1024]);
-            let present = caps.present_modes.iter().next().unwrap();
+            let present = vulkano::swapchain::PresentMode::Fifo;
             let usage = caps.supported_usage_flags;
             let format = caps.supported_formats[0].0;
 
@@ -254,10 +276,11 @@ impl FrontendRuntime {
         self.submissions.retain(|s| s.destroying_would_block());
 
         // Aquire ownership of the next frame's image to work on
-        let image_num = self.swapchain.acquire_next_image(Duration::from_millis(1)).unwrap();
+        let image_num = self.swapchain.acquire_next_image(Duration::from_millis(1))
+            .expect("Unable to aquire swapchain image in time.");
 
         // Build up the command buffer we want to submit for this frame
-        let buffer = vulkano::command_buffer::PrimaryCommandBufferBuilder::new(&self.device, self.queue.family())
+        let buffer = PrimaryCommandBufferBuilder::new(&self.device, self.queue.family())
             .draw_inline(&self.renderpass, &self.framebuffers[image_num], renderpass::ClearValues {
                  color: [0.1, 0.1, 0.1, 1.0],
                  depth: 1.0,
