@@ -19,10 +19,14 @@ pub fn frontend_runtime() {
     let mut last = SystemTime::now();
     let mut frame_counter = 0;
 
+    let mut teapot = 0.0;
+
     loop {
         if !runtime.handle_events() { return; }
 
-        runtime.render();
+        teapot += 0.05;
+
+        runtime.render(teapot);
 
         frame_counter += 1;
         let now = SystemTime::now();
@@ -65,6 +69,7 @@ mod pipeline_layout {
 
 pub struct FrontendRuntime {
     window: vulkano_win::Window,
+    dimensions: [u32; 2],
 
     device: Arc<Device>,
     queue: Arc<vulkano::device::Queue>,
@@ -72,8 +77,10 @@ pub struct FrontendRuntime {
     vertex_buffer: Arc<CpuAccessibleBuffer<[teapot::Vertex]>>,
     normals_buffer: Arc<CpuAccessibleBuffer<[teapot::Normal]>>,
     index_buffer: Arc<CpuAccessibleBuffer<[u16]>>,
+
     pipeline: Arc<GraphicsPipeline<TwoBuffersDefinition<teapot::Vertex, teapot::Normal>, pipeline_layout::CustomPipeline, renderpass::CustomRenderPass>>,
-    set: Arc<pipeline_layout::set0::Set>,
+    pipeline_layout: Arc<pipeline_layout::CustomPipeline>,
+    descriptor_pool: Arc<vulkano::descriptor::descriptor_set::DescriptorPool>,
 
     framebuffers: Vec<Arc<Framebuffer<renderpass::CustomRenderPass>>>,
     renderpass: Arc<renderpass::CustomRenderPass>,
@@ -165,25 +172,6 @@ impl FrontendRuntime {
             }
         }
 
-        // note: this teapot was meant for OpenGL where the origin is at the lower left
-        //       instead the origin is at the upper left in vulkan, so we reverse the Y axis
-        let proj = cgmath::perspective(
-            cgmath::Rad(3.141592 / 2.0),
-            { let d = images[0].dimensions(); d[0] as f32 / d[1] as f32 },
-            0.01, 100.0
-        );
-        let view = cgmath::Matrix4::look_at(cgmath::Point3::new(0.3, 0.3, 1.0), cgmath::Point3::new(0.0, 0.0, 0.0), cgmath::Vector3::new(0.0, -1.0, 0.0));
-        let scale = cgmath::Matrix4::from_scale(0.01);
-
-        let uniform_buffer = unsafe { vulkano::buffer::cpu_access::CpuAccessibleBuffer::<vs::ty::Data>
-                                   ::uninitialized(&device, &vulkano::buffer::BufferUsage::all(), Some(queue.family()))
-                                   .expect("failed to create buffer") };
-        {
-            let mut mapping = uniform_buffer.write(Duration::new(0, 0)).unwrap();
-            mapping.worldview = (view * scale).into();
-            mapping.proj = proj.into();
-        }
-
         let vs = vs::Shader::load(&device).expect("failed to create shader module");
         let fs = fs::Shader::load(&device).expect("failed to create shader module");
 
@@ -195,12 +183,6 @@ impl FrontendRuntime {
         let descriptor_pool = vulkano::descriptor::descriptor_set::DescriptorPool::new(&device);
 
         let pipeline_layout = pipeline_layout::CustomPipeline::new(&device).unwrap();
-        let set = pipeline_layout::set0::Set::new(
-            &descriptor_pool, &pipeline_layout,
-            &pipeline_layout::set0::Descriptors {
-                uniforms: &uniform_buffer
-            }
-        );
 
         let pipeline = vulkano::pipeline::GraphicsPipeline::new(&device, vulkano::pipeline::GraphicsPipelineParams {
             vertex_input: vulkano::pipeline::vertex::TwoBuffersDefinition::new(),
@@ -242,6 +224,7 @@ impl FrontendRuntime {
 
         FrontendRuntime {
             window: window,
+            dimensions: images[0].dimensions(),
 
             device: device,
             queue: queue,
@@ -249,8 +232,10 @@ impl FrontendRuntime {
             vertex_buffer: vertex_buffer,
             normals_buffer: normals_buffer,
             index_buffer: index_buffer,
+
             pipeline: pipeline,
-            set: set,
+            pipeline_layout: pipeline_layout,
+            descriptor_pool: descriptor_pool,
 
             framebuffers: framebuffers,
             renderpass: renderpass,
@@ -271,13 +256,50 @@ impl FrontendRuntime {
         true
     }
 
-    pub fn render(&mut self) {
+    pub fn render(&mut self, teapot: f32) {
         // Remove all command buffers that the GPU is finished with
         self.submissions.retain(|s| s.destroying_would_block());
 
         // Aquire ownership of the next frame's image to work on
         let image_num = self.swapchain.acquire_next_image(Duration::from_millis(1))
             .expect("Unable to aquire swapchain image in time.");
+
+        // Build up the uniforms for this frame
+        // note: this teapot was meant for OpenGL where the origin is at the lower left
+        //       instead the origin is at the upper left in vulkan, so we reverse the Y axis
+        let proj = cgmath::perspective(
+            cgmath::Rad(3.141592 / 2.0),
+            { let d = &self.dimensions; d[0] as f32 / d[1] as f32 },
+            0.01, 100.0
+        );
+        let view = cgmath::Matrix4::look_at(
+            cgmath::Point3::new(0.3, 0.3, 1.0),
+            cgmath::Point3::new(0.0, 0.0, 0.0),
+            cgmath::Vector3::new(0.0, -1.0, 0.0)
+        );
+        let scale = cgmath::Matrix4::from_scale(0.01);
+        let rotation = cgmath::Matrix4::from_angle_y(cgmath::Rad(teapot));
+
+        let uniform_buffer = unsafe {
+            vulkano::buffer::cpu_access::CpuAccessibleBuffer::<vs::ty::Data>::uninitialized(
+                &self.device,
+                &vulkano::buffer::BufferUsage::all(),
+                Some(self.queue.family())
+            ).expect("failed to create buffer")
+        };
+
+        {
+            let mut mapping = uniform_buffer.write(Duration::new(0, 0)).unwrap();
+            mapping.worldview = (view * scale * rotation).into();
+            mapping.proj = proj.into();
+        }
+
+        let set = pipeline_layout::set0::Set::new(
+            &self.descriptor_pool, &self.pipeline_layout,
+            &pipeline_layout::set0::Descriptors {
+                uniforms: &uniform_buffer
+            }
+        );
 
         // Build up the command buffer we want to submit for this frame
         let buffer = PrimaryCommandBufferBuilder::new(&self.device, self.queue.family())
@@ -287,7 +309,7 @@ impl FrontendRuntime {
             })
             .draw_indexed(
                 &self.pipeline, (&self.vertex_buffer, &self.normals_buffer), &self.index_buffer,
-                &vulkano::command_buffer::DynamicState::none(), &self.set, &()
+                &vulkano::command_buffer::DynamicState::none(), &set, &()
             )
             .draw_end()
             .build();
