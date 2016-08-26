@@ -5,7 +5,7 @@ use sc_input_data::{Button, InputState};
 
 pub struct ClientGame {
     input: InputState,
-    world: WorldState,
+    world: ClientWorld,
 
     commands: VecDeque<ClientGameCommand>,
 }
@@ -14,10 +14,14 @@ impl ClientGame {
     pub fn connect() -> Self {
         ClientGame {
             input: InputState::new(),
-            world: WorldState::new(),
+            world: ClientWorld::new(),
 
             commands: VecDeque::new(),
         }
+    }
+
+    pub fn world(&self) -> &ClientWorld {
+        &self.world
     }
 
     pub fn handle_event(&mut self, event: ClientGameEvent) {
@@ -38,13 +42,13 @@ impl ClientGame {
     }
 }
 
-struct WorldState {
+pub struct ClientWorld {
     teapot: f32
 }
 
-impl WorldState {
+impl ClientWorld {
     fn new() -> Self {
-        WorldState {
+        ClientWorld {
             teapot: 0.0
         }
     }
@@ -52,8 +56,14 @@ impl WorldState {
     fn update(&mut self, input: &InputState) {
         if input.get(Button::MoveForward) {
             self.teapot += 0.01;
-            println!("{}", self.teapot);
         }
+        if input.get(Button::MoveBackward) {
+            self.teapot -= 0.01;
+        }
+    }
+
+    pub fn teapot(&self) -> f32 {
+        self.teapot
     }
 }
 

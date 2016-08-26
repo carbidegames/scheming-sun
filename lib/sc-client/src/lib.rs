@@ -22,23 +22,23 @@ use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::vertex::TwoBuffersDefinition;
 use vulkano_win::{VkSurfaceBuild};
 
-use sc_client_game::{ClientGame, ClientGameEvent, ClientGameCommand};
+use sc_client_game::{ClientGame, ClientGameEvent, ClientGameCommand, ClientWorld};
 use sc_input_data::Button;
 use framecounter::FrameCounter;
 
 pub fn run() {
     let mut game = ClientGame::connect();
-    let mut runtime = ClientRuntime::init();
+    let mut frontend = Frontend::init();
     let mut counter = FrameCounter::new();
-
-    let mut teapot = 0.0;
 
     loop {
         // Get the frontend events that have happened and send them over
-        let events = runtime.poll_events();
-        for event in events {
+        frontend.poll_events(|event| {
             game.handle_event(event);
-        }
+        });
+
+        // Update the backend
+        game.update();
 
         // Check what the backend wants us to do
         if let Some(command) = game.next_command() {
@@ -48,9 +48,8 @@ pub fn run() {
             }
         }
 
-        teapot += 0.05;
-
-        runtime.render(teapot);
+        // Render the updated game state
+        frontend.render(game.world());
 
         counter.tick();
     }
@@ -85,7 +84,7 @@ mod pipeline_layout {
     }
 }
 
-pub struct ClientRuntime {
+pub struct Frontend {
     window: vulkano_win::Window,
     dimensions: [u32; 2],
 
@@ -106,7 +105,7 @@ pub struct ClientRuntime {
     submissions: Vec<Arc<vulkano::command_buffer::Submission>>,
 }
 
-impl ClientRuntime {
+impl Frontend {
     pub fn init() -> Self {
         let extensions = vulkano_win::required_extensions();
         let instance = vulkano::instance::Instance::new(None, &extensions, None)
@@ -149,8 +148,6 @@ impl ClientRuntime {
                 present, true, None
             ).expect("failed to create swapchain")
         };
-
-
 
         let depth_buffer = vulkano::image::attachment::AttachmentImage::transient(&device, images[0].dimensions(), vulkano::format::D16Unorm).unwrap();
 
@@ -240,7 +237,7 @@ impl ClientRuntime {
             ).unwrap()
         }).collect();
 
-        ClientRuntime {
+        Frontend {
             window: window,
             dimensions: images[0].dimensions(),
 
@@ -262,13 +259,11 @@ impl ClientRuntime {
         }
     }
 
-    pub fn poll_events(&self) -> Vec<ClientGameEvent> {
-        let mut events = Vec::new();
-
+    pub fn poll_events<H: FnMut(ClientGameEvent)>(&self, mut handler: H) {
         // Handle the window's events
         for ev in self.window.window().poll_events() {
             match ev {
-                Event::Closed => events.push(ClientGameEvent::Closed),
+                Event::Closed => handler(ClientGameEvent::Closed),
                 Event::KeyboardInput(state, _, Some(key)) => {
                     // Translate the keyboard event to a button event
                     let down = state == ElementState::Pressed;
@@ -280,17 +275,15 @@ impl ClientRuntime {
 
                     // If we were able to translate it, send it over
                     if let Some(button) = button {
-                        events.push(ClientGameEvent::ButtonState(button, down));
+                        handler(ClientGameEvent::ButtonState(button, down));
                     }
                 }
                 _ => ()
             }
         }
-
-        events
     }
 
-    pub fn render(&mut self, teapot: f32) {
+    pub fn render(&mut self, world: &ClientWorld) {
         // Remove all command buffers that the GPU is finished with
         self.submissions.retain(|s| s.destroying_would_block());
 
@@ -312,7 +305,7 @@ impl ClientRuntime {
             cgmath::Vector3::new(0.0, -1.0, 0.0)
         );
         let scale = cgmath::Matrix4::from_scale(0.01);
-        let rotation = cgmath::Matrix4::from_angle_y(cgmath::Rad(teapot));
+        let rotation = cgmath::Matrix4::from_angle_y(cgmath::Rad(world.teapot()));
 
         let uniform_buffer = unsafe {
             CpuAccessibleBuffer::<vs::ty::Data>::uninitialized(
