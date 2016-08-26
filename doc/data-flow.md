@@ -1,8 +1,8 @@
 # Data Flow
 Player input data flows through the engine in the following path:
-- Front-end receives W key-press data from the OS
-- Front-end translates W into a "Move Forward" button change event
-- Front-end sends the event to the back-end
+- Client receives W key-press data from the OS
+- Client translates W into a "Move Forward" button change event
+- Client sends the event to the back-end
 - Back-end receives the event and switches the "Move Forward" state to true
 - As the back-end sends a frame of data to the server, it includes the
     "Move Forward" state

@@ -1,7 +1,7 @@
 [package]
-name = "scheming-sun"
+name = "sc-client-game"
 version = "0.1.0"
 authors = ["Layl <LaylConway@users.noreply.github.com>"]
 
 [dependencies]
-sc-client = {path="lib/sc-client"}
+sc-input-data = {path="../sc-input-data"}

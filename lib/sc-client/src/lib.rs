@@ -1,26 +1,34 @@
+extern crate cgmath;
+#[macro_use] extern crate vulkano;
+extern crate vulkano_win;
+extern crate winit;
+extern crate sc_client_game;
+extern crate sc_input_data;
+
+mod framecounter;
+mod teapot;
+
+mod vs { include!{concat!(env!("OUT_DIR"), "/shaders/src/shader_vs.glsl")} }
+mod fs { include!{concat!(env!("OUT_DIR"), "/shaders/src/shader_fs.glsl")} }
+
 use std::sync::Arc;
-use std::sync::mpsc::{Sender, Receiver};
 use std::time::Duration;
-use cgmath;
-use winit::{self, Event, ElementState, VirtualKeyCode};
-use vulkano;
+use winit::{Event, ElementState, VirtualKeyCode};
 use vulkano::buffer::cpu_access::CpuAccessibleBuffer;
 use vulkano::command_buffer::PrimaryCommandBufferBuilder;
 use vulkano::device::Device;
 use vulkano::framebuffer::Framebuffer;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::vertex::TwoBuffersDefinition;
-use vulkano_win::{self, VkSurfaceBuild};
+use vulkano_win::{VkSurfaceBuild};
 
+use sc_client_game::{ClientGame, ClientGameEvent, ClientGameCommand};
 use sc_input_data::Button;
-
-use {FrontendEvent, FrontendCommand};
 use framecounter::FrameCounter;
-use teapot;
-use {vs, fs};
 
-pub fn frontend_runtime(sender: Sender<Vec<FrontendEvent>>, receiver: Receiver<FrontendCommand>) {
-    let mut runtime = FrontendRuntime::init();
+pub fn run() {
+    let mut game = ClientGame::init();
+    let mut runtime = ClientRuntime::init();
     let mut counter = FrameCounter::new();
 
     let mut teapot = 0.0;
@@ -28,14 +36,14 @@ pub fn frontend_runtime(sender: Sender<Vec<FrontendEvent>>, receiver: Receiver<F
     loop {
         // Get the frontend events that have happened and send them over
         let events = runtime.poll_events();
-        if events.len() != 0 {
-            sender.send(events).unwrap();
+        for event in events {
+            game.send_event(event);
         }
 
         // Check what the backend wants us to do
-        if let Ok(command) = receiver.try_recv() {
+        if let Some(command) = game.next_command() {
             match command {
-                FrontendCommand::Stop => return
+                ClientGameCommand::Stop => return
             }
         }
 
@@ -76,7 +84,7 @@ mod pipeline_layout {
     }
 }
 
-pub struct FrontendRuntime {
+pub struct ClientRuntime {
     window: vulkano_win::Window,
     dimensions: [u32; 2],
 
@@ -97,7 +105,7 @@ pub struct FrontendRuntime {
     submissions: Vec<Arc<vulkano::command_buffer::Submission>>,
 }
 
-impl FrontendRuntime {
+impl ClientRuntime {
     pub fn init() -> Self {
         let extensions = vulkano_win::required_extensions();
         let instance = vulkano::instance::Instance::new(None, &extensions, None)
@@ -231,7 +239,7 @@ impl FrontendRuntime {
             ).unwrap()
         }).collect();
 
-        FrontendRuntime {
+        ClientRuntime {
             window: window,
             dimensions: images[0].dimensions(),
 
@@ -253,13 +261,13 @@ impl FrontendRuntime {
         }
     }
 
-    pub fn poll_events(&self) -> Vec<FrontendEvent> {
+    pub fn poll_events(&self) -> Vec<ClientGameEvent> {
         let mut events = Vec::new();
 
         // Handle the window's events
         for ev in self.window.window().poll_events() {
             match ev {
-                Event::Closed => events.push(FrontendEvent::Closed),
+                Event::Closed => events.push(ClientGameEvent::Closed),
                 Event::KeyboardInput(state, _, Some(key)) => {
                     // Translate the keyboard event to a button event
                     let down = state == ElementState::Pressed;
@@ -271,7 +279,7 @@ impl FrontendRuntime {
 
                     // If we were able to translate it, send it over
                     if let Some(button) = button {
-                        events.push(FrontendEvent::ButtonState(button, down));
+                        events.push(ClientGameEvent::ButtonState(button, down));
                     }
                 }
                 _ => ()
