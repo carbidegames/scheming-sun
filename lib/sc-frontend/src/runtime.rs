@@ -1,7 +1,8 @@
 use std::sync::Arc;
-use std::time::{Duration, SystemTime};
+use std::sync::mpsc::{Sender, Receiver};
+use std::time::Duration;
 use cgmath;
-use winit;
+use winit::{self, Event};
 use vulkano;
 use vulkano::buffer::cpu_access::CpuAccessibleBuffer;
 use vulkano::command_buffer::PrimaryCommandBufferBuilder;
@@ -10,31 +11,37 @@ use vulkano::framebuffer::Framebuffer;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::vertex::TwoBuffersDefinition;
 use vulkano_win::{self, VkSurfaceBuild};
+
+use {FrontendEvent, FrontendCommand};
+use framecounter::FrameCounter;
 use teapot;
 use {vs, fs};
 
-pub fn frontend_runtime() {
+pub fn frontend_runtime(sender: Sender<Vec<FrontendEvent>>, receiver: Receiver<FrontendCommand>) {
     let mut runtime = FrontendRuntime::init();
-
-    let mut last = SystemTime::now();
-    let mut frame_counter = 0;
+    let mut counter = FrameCounter::new();
 
     let mut teapot = 0.0;
 
     loop {
-        if !runtime.handle_events() { return; }
+        // Get the frontend events that have happened and send them over
+        let events = runtime.poll_events();
+        if events.len() != 0 {
+            sender.send(events).unwrap();
+        }
+
+        // Check what the backend wants us to do
+        if let Ok(command) = receiver.try_recv() {
+            match command {
+                FrontendCommand::Stop => return
+            }
+        }
 
         teapot += 0.05;
 
         runtime.render(teapot);
 
-        frame_counter += 1;
-        let now = SystemTime::now();
-        if now.duration_since(last).unwrap() >= Duration::new(1, 0) {
-            println!("FPS: {}", frame_counter);
-            frame_counter = 0;
-            last = now;
-        }
+        counter.tick();
     }
 }
 
@@ -136,7 +143,7 @@ impl FrontendRuntime {
 
         let depth_buffer = vulkano::image::attachment::AttachmentImage::transient(&device, images[0].dimensions(), vulkano::format::D16Unorm).unwrap();
 
-        let vertex_buffer = unsafe { vulkano::buffer::cpu_access::CpuAccessibleBuffer
+        let vertex_buffer = unsafe { CpuAccessibleBuffer
                                    ::uninitialized_array(&device, teapot::VERTICES.len(),
                                            &vulkano::buffer::BufferUsage::all(), Some(queue.family()))
                                            .expect("failed to create buffer") };
@@ -148,7 +155,7 @@ impl FrontendRuntime {
             }
         }
 
-        let normals_buffer = unsafe { vulkano::buffer::cpu_access::CpuAccessibleBuffer
+        let normals_buffer = unsafe { CpuAccessibleBuffer
                                     ::uninitialized_array(&device, teapot::NORMALS.len(),
                                             &vulkano::buffer::BufferUsage::all(), Some(queue.family()))
                                             .expect("failed to create buffer") };
@@ -160,7 +167,7 @@ impl FrontendRuntime {
             }
         }
 
-        let index_buffer = unsafe { vulkano::buffer::cpu_access::CpuAccessibleBuffer
+        let index_buffer = unsafe { CpuAccessibleBuffer
                                   ::uninitialized_array(&device, teapot::INDICES.len(),
                                           &vulkano::buffer::BufferUsage::all(), Some(queue.family()))
                                           .expect("failed to create buffer") };
@@ -244,16 +251,18 @@ impl FrontendRuntime {
         }
     }
 
-    pub fn handle_events(&self) -> bool {
+    pub fn poll_events(&self) -> Vec<FrontendEvent> {
+        let mut events = Vec::new();
+
         // Handle the window's events
         for ev in self.window.window().poll_events() {
             match ev {
-                winit::Event::Closed => return false,
+                Event::Closed => events.push(FrontendEvent::Closed),
                 _ => ()
             }
         }
 
-        true
+        events
     }
 
     pub fn render(&mut self, teapot: f32) {
@@ -281,7 +290,7 @@ impl FrontendRuntime {
         let rotation = cgmath::Matrix4::from_angle_y(cgmath::Rad(teapot));
 
         let uniform_buffer = unsafe {
-            vulkano::buffer::cpu_access::CpuAccessibleBuffer::<vs::ty::Data>::uninitialized(
+            CpuAccessibleBuffer::<vs::ty::Data>::uninitialized(
                 &self.device,
                 &vulkano::buffer::BufferUsage::all(),
                 Some(self.queue.family())
