@@ -5,3 +5,4 @@ authors = ["Layl <LaylConway@users.noreply.github.com>"]
 
 [dependencies]
 sc-frontend = {path="lib/sc-frontend"}
+sc-input-data = {path="lib/sc-input-data"}

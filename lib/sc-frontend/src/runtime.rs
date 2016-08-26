@@ -2,7 +2,7 @@ use std::sync::Arc;
 use std::sync::mpsc::{Sender, Receiver};
 use std::time::Duration;
 use cgmath;
-use winit::{self, Event};
+use winit::{self, Event, ElementState, VirtualKeyCode};
 use vulkano;
 use vulkano::buffer::cpu_access::CpuAccessibleBuffer;
 use vulkano::command_buffer::PrimaryCommandBufferBuilder;
@@ -11,6 +11,8 @@ use vulkano::framebuffer::Framebuffer;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::vertex::TwoBuffersDefinition;
 use vulkano_win::{self, VkSurfaceBuild};
+
+use sc_input_data::Button;
 
 use {FrontendEvent, FrontendCommand};
 use framecounter::FrameCounter;
@@ -258,6 +260,20 @@ impl FrontendRuntime {
         for ev in self.window.window().poll_events() {
             match ev {
                 Event::Closed => events.push(FrontendEvent::Closed),
+                Event::KeyboardInput(state, _, Some(key)) => {
+                    // Translate the keyboard event to a button event
+                    let down = state == ElementState::Pressed;
+                    let button = match key {
+                        VirtualKeyCode::W => Some(Button::MoveForward),
+                        VirtualKeyCode::S => Some(Button::MoveBackward),
+                        _ => None
+                    };
+
+                    // If we were able to translate it, send it over
+                    if let Some(button) = button {
+                        events.push(FrontendEvent::ButtonState(button, down));
+                    }
+                }
                 _ => ()
             }
         }
