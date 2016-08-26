@@ -27,7 +27,7 @@ use sc_input_data::Button;
 use framecounter::FrameCounter;
 
 pub fn run() {
-    let mut game = ClientGame::init();
+    let mut game = ClientGame::connect();
     let mut runtime = ClientRuntime::init();
     let mut counter = FrameCounter::new();
 
@@ -37,13 +37,14 @@ pub fn run() {
         // Get the frontend events that have happened and send them over
         let events = runtime.poll_events();
         for event in events {
-            game.send_event(event);
+            game.handle_event(event);
         }
 
         // Check what the backend wants us to do
         if let Some(command) = game.next_command() {
             match command {
-                ClientGameCommand::Stop => return
+                ClientGameCommand::Stop => return,
+                _ => (),
             }
         }
 

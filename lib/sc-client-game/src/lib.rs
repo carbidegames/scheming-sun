@@ -1,41 +1,59 @@
 extern crate sc_input_data;
 
-mod runtime;
-
-use std::sync::mpsc::{self, Sender, Receiver};
-use std::thread::{self, JoinHandle};
-use sc_input_data::Button;
+use std::collections::VecDeque;
+use sc_input_data::{Button, InputState};
 
 pub struct ClientGame {
-    _handle: JoinHandle<()>,
+    input: InputState,
+    world: WorldState,
 
-    event_sender: Sender<ClientGameEvent>,
-    command_receiver: Receiver<ClientGameCommand>,
+    commands: VecDeque<ClientGameCommand>,
 }
 
 impl ClientGame {
-    pub fn init() -> Self {
-        let (event_s, event_r) = mpsc::channel();
-        let (command_s, command_r) = mpsc::channel();
-
-        let handle = thread::spawn(move || {
-            runtime::run(event_r, command_s);
-        });
-
+    pub fn connect() -> Self {
         ClientGame {
-            _handle: handle,
+            input: InputState::new(),
+            world: WorldState::new(),
 
-            event_sender: event_s,
-            command_receiver: command_r,
+            commands: VecDeque::new(),
         }
     }
 
-    pub fn send_event(&mut self, event: ClientGameEvent) {
-        self.event_sender.send(event).unwrap();
+    pub fn handle_event(&mut self, event: ClientGameEvent) {
+        match event {
+            ClientGameEvent::Closed => self.commands.push_back(ClientGameCommand::Stop),
+            ClientGameEvent::ButtonState(button, state) => self.input.set(button, state),
+            _ => {}
+        }
     }
 
     pub fn next_command(&mut self) -> Option<ClientGameCommand> {
-        self.command_receiver.try_recv().ok()
+        self.commands.pop_front()
+    }
+
+    pub fn update(&mut self) {
+        // Update the world
+        self.world.update(&self.input);
+    }
+}
+
+struct WorldState {
+    teapot: f32
+}
+
+impl WorldState {
+    fn new() -> Self {
+        WorldState {
+            teapot: 0.0
+        }
+    }
+
+    fn update(&mut self, input: &InputState) {
+        if input.get(Button::MoveForward) {
+            self.teapot += 0.01;
+            println!("{}", self.teapot);
+        }
     }
 }
 
@@ -47,4 +65,5 @@ pub enum ClientGameEvent {
 
 pub enum ClientGameCommand {
     Stop,
+    __DoNotMatch,
 }
