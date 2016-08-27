@@ -21,6 +21,7 @@ use vulkano::device::Device;
 use vulkano::framebuffer::Framebuffer;
 use vulkano::pipeline::GraphicsPipeline;
 use vulkano::pipeline::vertex::TwoBuffersDefinition;
+use vulkano::pipeline::raster::{Rasterization, CullMode, FrontFace};
 use vulkano_win::{VkSurfaceBuild};
 
 use sc_client_game::{ClientGame, ClientGameEvent, ClientGameCommand, ClientWorld};
@@ -216,7 +217,11 @@ impl Frontend {
                     vulkano::pipeline::viewport::Scissor::irrelevant()
                 )],
             },
-            raster: Default::default(),
+            raster: Rasterization {
+                cull_mode: CullMode::Back,
+                front_face: FrontFace::Clockwise, // This seems to cull CCW, I'm not sure why
+                .. Default::default()
+            },
             multisample: vulkano::pipeline::multisample::Multisample::disabled(),
             fragment_shader: fs.main_entry_point(),
             depth_stencil: vulkano::pipeline::depth_stencil::DepthStencil::simple_depth_test(),
@@ -295,17 +300,22 @@ impl Frontend {
             .expect("Unable to aquire swapchain image in time.");
 
         // Calculate the camera projection matrix
-        let proj = cgmath::perspective(
+        let mut proj = cgmath::perspective(
             cgmath::Rad(3.141592 / 2.0),
             { let d = &self.dimensions; d[0] as f32 / d[1] as f32 },
             0.01, 100.0
         );
 
+        // Correct the projection for the inverted Y in vulkan
+        let mut correction = Matrix4::identity();
+        correction.y.y = -1.0;
+        correction.z.z = 0.5;
+        correction.w.z = 0.5;
+        proj = correction * proj;
+
         // Calculate the camera view matrix
-        let translation = Matrix4::from_translation(world.camera().pos());
-        let scale = Matrix4::from_nonuniform_scale(1.0, -1.0, 1.0);
-        let mut view = translation * scale;
-        view = view.invert().unwrap();
+        let translation = Matrix4::from_translation(world.camera().position());
+        let view = (translation).invert().unwrap();
 
         // Calculate the teapot model matrix
         let translation = Matrix4::from_translation(Vector3::new(0.0, 0.0, 0.0));
