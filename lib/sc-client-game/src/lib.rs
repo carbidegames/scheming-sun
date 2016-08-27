@@ -36,9 +36,9 @@ impl ClientGame {
         self.commands.pop_front()
     }
 
-    pub fn update(&mut self) {
+    pub fn update(&mut self, delta: f32) {
         // Update the world
-        self.world.update(&self.input);
+        self.world.update(delta, &self.input);
     }
 }
 
@@ -53,12 +53,12 @@ impl ClientWorld {
         }
     }
 
-    fn update(&mut self, input: &InputState) {
+    fn update(&mut self, delta: f32, input: &InputState) {
         if input.get(Button::MoveForward) {
-            self.teapot += 0.01;
+            self.teapot += 1.0 * delta;
         }
         if input.get(Button::MoveBackward) {
-            self.teapot -= 0.01;
+            self.teapot -= 1.0 * delta;
         }
     }
 

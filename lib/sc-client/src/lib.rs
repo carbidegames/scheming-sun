@@ -38,7 +38,7 @@ pub fn run() {
         });
 
         // Update the backend
-        game.update();
+        game.update(counter.delta());
 
         // Check what the backend wants us to do
         if let Some(command) = game.next_command() {
