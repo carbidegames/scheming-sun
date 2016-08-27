@@ -13,6 +13,7 @@ mod fs { include!{concat!(env!("OUT_DIR"), "/shaders/src/shader_fs.glsl")} }
 
 use std::sync::Arc;
 use std::time::Duration;
+use cgmath::{Matrix4, Vector3, Rad, SquareMatrix};
 use winit::{Event, ElementState, VirtualKeyCode};
 use vulkano::buffer::cpu_access::CpuAccessibleBuffer;
 use vulkano::command_buffer::PrimaryCommandBufferBuilder;
@@ -270,6 +271,8 @@ impl Frontend {
                     let button = match key {
                         VirtualKeyCode::W => Some(Button::MoveForward),
                         VirtualKeyCode::S => Some(Button::MoveBackward),
+                        VirtualKeyCode::D => Some(Button::MoveRight),
+                        VirtualKeyCode::A => Some(Button::MoveLeft),
                         _ => None
                     };
 
@@ -291,21 +294,24 @@ impl Frontend {
         let image_num = self.swapchain.acquire_next_image(Duration::from_millis(1))
             .expect("Unable to aquire swapchain image in time.");
 
-        // Build up the uniforms for this frame
-        // note: this teapot was meant for OpenGL where the origin is at the lower left
-        //       instead the origin is at the upper left in vulkan, so we reverse the Y axis
+        // Calculate the camera projection matrix
         let proj = cgmath::perspective(
             cgmath::Rad(3.141592 / 2.0),
             { let d = &self.dimensions; d[0] as f32 / d[1] as f32 },
             0.01, 100.0
         );
-        let view = cgmath::Matrix4::look_at(
-            cgmath::Point3::new(0.3, 0.3, 1.0),
-            cgmath::Point3::new(0.0, 0.0, 0.0),
-            cgmath::Vector3::new(0.0, -1.0, 0.0)
-        );
-        let scale = cgmath::Matrix4::from_scale(0.01);
-        let rotation = cgmath::Matrix4::from_angle_y(cgmath::Rad(world.teapot()));
+
+        // Calculate the camera view matrix
+        let translation = Matrix4::from_translation(world.camera().pos());
+        let scale = Matrix4::from_nonuniform_scale(1.0, -1.0, 1.0);
+        let mut view = translation * scale;
+        view = view.invert().unwrap();
+
+        // Calculate the teapot model matrix
+        let translation = Matrix4::from_translation(Vector3::new(0.0, 0.0, 0.0));
+        let rotation = Matrix4::from_angle_y(Rad(world.teapot()));
+        let scale = Matrix4::from_scale(0.01);
+        let model = translation * rotation * scale;
 
         let uniform_buffer = unsafe {
             CpuAccessibleBuffer::<vs::ty::Data>::uninitialized(
@@ -317,7 +323,7 @@ impl Frontend {
 
         {
             let mut mapping = uniform_buffer.write(Duration::new(0, 0)).unwrap();
-            mapping.worldview = (view * scale * rotation).into();
+            mapping.worldview = (view * model).into();
             mapping.proj = proj.into();
         }
 

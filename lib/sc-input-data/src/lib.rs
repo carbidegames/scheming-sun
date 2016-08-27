@@ -21,6 +21,8 @@ impl InputState {
 pub enum Button {
     MoveForward,
     MoveBackward,
+    MoveRight,
+    MoveLeft,
     __DoNotMatch,
 }
 

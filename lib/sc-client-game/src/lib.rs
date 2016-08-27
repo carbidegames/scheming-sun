@@ -1,7 +1,14 @@
 extern crate sc_input_data;
+extern crate cgmath;
+
+mod camera;
+mod world;
 
 use std::collections::VecDeque;
 use sc_input_data::{Button, InputState};
+
+pub use camera::Camera;
+pub use world::ClientWorld;
 
 pub struct ClientGame {
     input: InputState,
@@ -39,31 +46,6 @@ impl ClientGame {
     pub fn update(&mut self, delta: f32) {
         // Update the world
         self.world.update(delta, &self.input);
-    }
-}
-
-pub struct ClientWorld {
-    teapot: f32
-}
-
-impl ClientWorld {
-    fn new() -> Self {
-        ClientWorld {
-            teapot: 0.0
-        }
-    }
-
-    fn update(&mut self, delta: f32, input: &InputState) {
-        if input.get(Button::MoveForward) {
-            self.teapot += 1.0 * delta;
-        }
-        if input.get(Button::MoveBackward) {
-            self.teapot -= 1.0 * delta;
-        }
-    }
-
-    pub fn teapot(&self) -> f32 {
-        self.teapot
     }
 }
 
