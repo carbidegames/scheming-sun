@@ -33,7 +33,6 @@ impl ClientGame {
 
     pub fn handle_event(&mut self, event: ClientGameEvent) {
         match event {
-            ClientGameEvent::Closed => self.commands.push_back(ClientGameCommand::Stop),
             ClientGameEvent::ButtonState(button, state) => self.input.set(button, state),
             _ => {}
         }
@@ -46,16 +45,16 @@ impl ClientGame {
     pub fn update(&mut self, delta: f32) {
         // Update the world
         self.world.update(delta, &self.input);
+
+        self.input.end_frame();
     }
 }
 
 pub enum ClientGameEvent {
-    Closed,
     ButtonState(Button, bool),
     __DoNotMatch,
 }
 
 pub enum ClientGameCommand {
-    Stop,
     __DoNotMatch,
 }
