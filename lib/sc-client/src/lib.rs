@@ -12,9 +12,10 @@ mod teapot;
 mod vs { include!{concat!(env!("OUT_DIR"), "/shaders/src/shader_vs.glsl")} }
 mod fs { include!{concat!(env!("OUT_DIR"), "/shaders/src/shader_fs.glsl")} }
 
-use sc_client_game::{ClientGame};
+use sc_client_game::{ClientGame, ClientGameEvent};
+use sc_input_data::Button;
 use framecounter::FrameCounter;
-use frontend::Frontend;
+use frontend::{Frontend, FrontendEvent};
 
 pub fn run() {
     let mut game = ClientGame::connect();
@@ -22,14 +23,17 @@ pub fn run() {
     let mut counter = FrameCounter::new();
 
     loop {
-        // TODO: This needs a rework, the assumption that events just need to be sent over to the
-        //  ClientGame is wrong, because the ClientGame only cares about information relevant to
-        //  the world simulation.
-        // Get the frontend events that have happened and send them over
-        let keep_running = frontend.poll_events(|event| {
-            game.handle_event(event);
+        // Get the frontend events and handle them or send them over
+        let mut should_break = false;
+        frontend.poll_events(|event| {
+            match event {
+                FrontendEvent::Close => should_break = true,
+                FrontendEvent::ButtonState(Button::Menu, _) => should_break = true,
+                FrontendEvent::ButtonState(b, s) =>
+                    game.handle_event(ClientGameEvent::ButtonState(b, s))
+            }
         });
-        if !keep_running { break; }
+        if should_break { break; }
 
         // Update the backend
         game.update(counter.delta());

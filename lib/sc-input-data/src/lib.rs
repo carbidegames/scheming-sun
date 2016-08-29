@@ -41,6 +41,7 @@ pub enum Button {
     MoveBackward,
     MoveRight,
     MoveLeft,
+    Menu,
     __DoNotMatch,
 }
 

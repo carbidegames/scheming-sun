@@ -17,7 +17,7 @@ use vulkano::swapchain::{Swapchain, PresentMode};
 use vulkano_win::{self, VkSurfaceBuild};
 
 use {vs, fs, teapot};
-use sc_client_game::{ClientGameEvent, ClientWorld};
+use sc_client_game::ClientWorld;
 use sc_input_data::Button;
 
 mod renderpass {
@@ -234,13 +234,11 @@ impl Frontend {
         }
     }
 
-    pub fn poll_events<H: FnMut(ClientGameEvent)>(&self, mut handler: H) -> bool {
-        let mut keep_running = true;
-
+    pub fn poll_events<H: FnMut(FrontendEvent)>(&self, mut handler: H) {
         // Handle the window's events
         for ev in self.window.window().poll_events() {
             match ev {
-                Event::Closed => keep_running = false,
+                Event::Closed => handler(FrontendEvent::Close),
                 Event::KeyboardInput(state, _, Some(key)) => {
                     // Translate the keyboard event to a button event
                     let down = state == ElementState::Pressed;
@@ -249,20 +247,18 @@ impl Frontend {
                         VirtualKeyCode::S => Some(Button::MoveBackward),
                         VirtualKeyCode::D => Some(Button::MoveRight),
                         VirtualKeyCode::A => Some(Button::MoveLeft),
-                        VirtualKeyCode::Escape => {keep_running = false; None},
+                        VirtualKeyCode::Escape => Some(Button::Menu),
                         _ => None
                     };
 
                     // If we were able to translate it, send it over
                     if let Some(button) = button {
-                        handler(ClientGameEvent::ButtonState(button, down));
+                        handler(FrontendEvent::ButtonState(button, down));
                     }
                 }
                 _ => ()
             }
         }
-
-        keep_running
     }
 
     pub fn render(&mut self, world: &ClientWorld) {
@@ -338,4 +334,9 @@ impl Frontend {
         // Present our new frame to the user
         self.swapchain.present(&self.queue, image_num).unwrap();
     }
+}
+
+pub enum FrontendEvent {
+    Close,
+    ButtonState(Button, bool),
 }
