@@ -1,10 +1,10 @@
 use std::sync::Arc;
 use std::time::Duration;
-use cgmath::{self, Matrix4, Vector3, Rad, SquareMatrix};
+use cgmath::{self, Matrix4, Vector2, Vector3, Rad, SquareMatrix};
 use winit::{self, Event, ElementState, VirtualKeyCode};
 use vulkano;
 use vulkano::buffer::cpu_access::CpuAccessibleBuffer;
-use vulkano::command_buffer::PrimaryCommandBufferBuilder;
+use vulkano::command_buffer::{self, DynamicState, PrimaryCommandBufferBuilder};
 use vulkano::device::Device;
 use vulkano::format::D16Unorm;
 use vulkano::framebuffer::{Framebuffer, Subpass};
@@ -255,7 +255,9 @@ impl Frontend {
                     if let Some(button) = button {
                         handler(FrontendEvent::ButtonState(button, down));
                     }
-                }
+                },
+                Event::MouseMoved(position) =>
+                    handler(FrontendEvent::MouseMove(position.into())),
                 _ => ()
             }
         }
@@ -277,15 +279,13 @@ impl Frontend {
         );
 
         // Correct the projection for the inverted Y in vulkan
-        let mut correction = Matrix4::identity();
-        correction.y.y = -1.0;
-        correction.z.z = 0.5;
-        correction.w.z = 0.5;
-        proj = correction * proj;
+        proj = Matrix4::from_nonuniform_scale(1.0, -1.0, 1.0) * proj;
 
         // Calculate the camera view matrix
-        let translation = Matrix4::from_translation(world.camera().position());
-        let view = (translation).invert().unwrap();
+        let cam = world.camera();
+        let translation = Matrix4::from_translation(cam.position());
+        let rotation_yaw = Matrix4::from_angle_y(Rad(cam.yaw()));
+        let view = (translation * rotation_yaw).invert().unwrap();
 
         // Calculate the teapot model matrix
         let translation = Matrix4::from_translation(Vector3::new(0.0, 0.0, 0.0));
@@ -322,13 +322,13 @@ impl Frontend {
             })
             .draw_indexed(
                 &self.pipeline, (&self.vertex_buffer, &self.normals_buffer), &self.index_buffer,
-                &vulkano::command_buffer::DynamicState::none(), &set, &()
+                &DynamicState::none(), &set, &()
             )
             .draw_end()
             .build();
 
         // Submit the command buffer and keep track of the submission so we can clean it up later
-        let submission = vulkano::command_buffer::submit(&buffer, &self.queue).unwrap();
+        let submission = command_buffer::submit(&buffer, &self.queue).unwrap();
         self.submissions.push(submission);
 
         // Present our new frame to the user
@@ -339,4 +339,5 @@ impl Frontend {
 pub enum FrontendEvent {
     Close,
     ButtonState(Button, bool),
+    MouseMove(Vector2<i32>),
 }

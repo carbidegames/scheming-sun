@@ -30,7 +30,9 @@ pub fn run() {
                 FrontendEvent::Close => should_break = true,
                 FrontendEvent::ButtonState(Button::Menu, _) => should_break = true,
                 FrontendEvent::ButtonState(b, s) =>
-                    game.handle_event(ClientGameEvent::ButtonState(b, s))
+                    game.handle_event(ClientGameEvent::ButtonState(b, s)),
+                FrontendEvent::MouseMove(position) =>
+                    game.handle_event(ClientGameEvent::MouseMove(position)),
             }
         });
         if should_break { break; }

@@ -5,6 +5,7 @@ mod camera;
 mod world;
 
 use std::collections::VecDeque;
+use cgmath::Vector2;
 use sc_input_data::{Button, InputState};
 
 pub use camera::Camera;
@@ -34,7 +35,7 @@ impl ClientGame {
     pub fn handle_event(&mut self, event: ClientGameEvent) {
         match event {
             ClientGameEvent::ButtonState(button, state) => self.input.set(button, state),
-            _ => {}
+            ClientGameEvent::MouseMove(position) => self.input.set_mouse(position),
         }
     }
 
@@ -52,9 +53,8 @@ impl ClientGame {
 
 pub enum ClientGameEvent {
     ButtonState(Button, bool),
-    __DoNotMatch,
+    MouseMove(Vector2<i32>),
 }
 
 pub enum ClientGameCommand {
-    __DoNotMatch,
 }

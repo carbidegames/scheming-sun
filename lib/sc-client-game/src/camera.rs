@@ -30,8 +30,8 @@ impl Camera {
 
     pub fn update(&mut self, delta: f32, input: &InputState) {
         // Rotate to mouse input
-        self.pitch += input.frame_mouse().y as f32 * 0.1;
-        self.yaw += input.frame_mouse().x as f32 * 0.1;
+        self.pitch += input.frame_mouse().y as f32 * 0.001;
+        self.yaw += -(input.frame_mouse().x as f32 * 0.001);
 
         // Move to button input
         let mut direction = Vector3::zero();

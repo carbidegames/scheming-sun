@@ -4,6 +4,7 @@ use cgmath::Vector2;
 
 pub struct InputState {
     buttons: [bool; 8],
+    mouse_position: Vector2<i32>,
     frame_mouse: Vector2<i32>,
 }
 
@@ -11,6 +12,7 @@ impl InputState {
     pub fn new() -> Self {
         InputState {
             buttons: [false; 8],
+            mouse_position: Vector2::new(0, 0),
             frame_mouse: Vector2::new(0, 0),
         }
     }
@@ -24,7 +26,18 @@ impl InputState {
     }
 
     pub fn add_mouse(&mut self, value: Vector2<i32>) {
-        self.frame_mouse += value;
+        // Find the new position, then apply it
+        let new = self.mouse_position + value;
+        self.set_mouse(new);
+    }
+
+    pub fn set_mouse(&mut self, position: Vector2<i32>) {
+        // Find the difference in positions and add that to the difference tracker
+        let difference = position - self.mouse_position;
+        self.frame_mouse += difference;
+
+        // Store the new position
+        self.mouse_position = position;
     }
 
     pub fn end_frame(&mut self) {
