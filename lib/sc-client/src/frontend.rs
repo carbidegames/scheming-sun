@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Duration;
 use cgmath::{self, Matrix4, Vector2, Vector3, Rad, SquareMatrix};
-use winit::{self, Event, ElementState, VirtualKeyCode};
+use winit::{Event, ElementState, VirtualKeyCode, WindowBuilder};
 use vulkano;
 use vulkano::buffer::cpu_access::CpuAccessibleBuffer;
 use vulkano::command_buffer::{self, DynamicState, PrimaryCommandBufferBuilder};
@@ -51,7 +51,7 @@ mod pipeline_layout {
 
 pub struct Frontend {
     window: vulkano_win::Window,
-    dimensions: [u32; 2],
+    dimensions: Vector2<i32>,
 
     device: Arc<Device>,
     queue: Arc<vulkano::device::Queue>,
@@ -81,7 +81,10 @@ impl Frontend {
             .expect("no device available");
         println!("Using device: {} (type: {:?})", physical.name(), physical.ty());
 
-        let window = winit::WindowBuilder::new().build_vk_surface(&instance).unwrap();
+        let dimensions = Vector2::new(1280, 720);
+        let window = WindowBuilder::new()
+            .with_dimensions(dimensions.x as u32, dimensions.y as u32)
+            .build_vk_surface(&instance).unwrap();
 
         let queue_families = physical.queue_families()
             .find(|q| q.supports_graphics() && window.surface().is_supported(q).unwrap_or(false))
@@ -134,10 +137,12 @@ impl Frontend {
             }
         }
 
-        let normals_buffer = unsafe { CpuAccessibleBuffer
-                                    ::uninitialized_array(&device, teapot::NORMALS.len(),
-                                            &vulkano::buffer::BufferUsage::all(), Some(queue.family()))
-                                            .expect("failed to create buffer") };
+        let normals_buffer = unsafe {
+            CpuAccessibleBuffer::uninitialized_array(
+                &device, teapot::NORMALS.len(),
+                &vulkano::buffer::BufferUsage::all(), Some(queue.family())
+            ).expect("failed to create buffer")
+        };
 
         {
             let mut mapping = normals_buffer.write(Duration::new(0, 0)).unwrap();
@@ -146,10 +151,12 @@ impl Frontend {
             }
         }
 
-        let index_buffer = unsafe { CpuAccessibleBuffer
-                                  ::uninitialized_array(&device, teapot::INDICES.len(),
-                                          &vulkano::buffer::BufferUsage::all(), Some(queue.family()))
-                                          .expect("failed to create buffer") };
+        let index_buffer = unsafe {
+            CpuAccessibleBuffer::uninitialized_array(
+                &device, teapot::INDICES.len(),
+                &vulkano::buffer::BufferUsage::all(), Some(queue.family())
+            ).expect("failed to create buffer")
+        };
 
         {
             let mut mapping = index_buffer.write(Duration::new(0, 0)).unwrap();
@@ -214,7 +221,7 @@ impl Frontend {
 
         Frontend {
             window: window,
-            dimensions: images[0].dimensions(),
+            dimensions: dimensions,
 
             device: device,
             queue: queue,
@@ -256,9 +263,16 @@ impl Frontend {
                         handler(FrontendEvent::ButtonState(button, down));
                     }
                 },
-                Event::MouseMoved(position) =>
-                    handler(FrontendEvent::MouseMove(position.into())),
-                _ => ()
+                Event::MouseMoved(position) => {
+                    // First, send an event for the initial mouse move
+                    handler(FrontendEvent::MouseMove(position.into(), true));
+
+                    // Now, move the mouse back and also send an event for that
+                    let new = (self.dimensions[0]/2, self.dimensions[1]/2);
+                    self.window.window().set_cursor_position(new.0, new.1).unwrap();
+                    handler(FrontendEvent::MouseMove(new.into(), false));
+                },
+                _ => {}
             }
         }
     }
@@ -339,5 +353,5 @@ impl Frontend {
 pub enum FrontendEvent {
     Close,
     ButtonState(Button, bool),
-    MouseMove(Vector2<i32>),
+    MouseMove(Vector2<i32>, bool), // position, should be tracked for frame offset
 }

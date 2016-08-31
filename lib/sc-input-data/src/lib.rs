@@ -28,13 +28,15 @@ impl InputState {
     pub fn add_mouse(&mut self, value: Vector2<i32>) {
         // Find the new position, then apply it
         let new = self.mouse_position + value;
-        self.set_mouse(new);
+        self.set_mouse(new, true);
     }
 
-    pub fn set_mouse(&mut self, position: Vector2<i32>) {
-        // Find the difference in positions and add that to the difference tracker
-        let difference = position - self.mouse_position;
-        self.frame_mouse += difference;
+    pub fn set_mouse(&mut self, position: Vector2<i32>, should_track: bool) {
+        if should_track {
+            // Find the difference in positions and add that to the difference tracker
+            let difference = position - self.mouse_position;
+            self.frame_mouse += difference;
+        }
 
         // Store the new position
         self.mouse_position = position;

@@ -31,8 +31,8 @@ pub fn run() {
                 FrontendEvent::ButtonState(Button::Menu, _) => should_break = true,
                 FrontendEvent::ButtonState(b, s) =>
                     game.handle_event(ClientGameEvent::ButtonState(b, s)),
-                FrontendEvent::MouseMove(position) =>
-                    game.handle_event(ClientGameEvent::MouseMove(position)),
+                FrontendEvent::MouseMove(position, should_track) =>
+                    game.handle_event(ClientGameEvent::MouseMove(position, should_track)),
             }
         });
         if should_break { break; }

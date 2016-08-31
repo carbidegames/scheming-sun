@@ -34,8 +34,10 @@ impl ClientGame {
 
     pub fn handle_event(&mut self, event: ClientGameEvent) {
         match event {
-            ClientGameEvent::ButtonState(button, state) => self.input.set(button, state),
-            ClientGameEvent::MouseMove(position) => self.input.set_mouse(position),
+            ClientGameEvent::ButtonState(button, state) =>
+                self.input.set(button, state),
+            ClientGameEvent::MouseMove(position, should_track) =>
+                self.input.set_mouse(position, should_track),
         }
     }
 
@@ -53,7 +55,7 @@ impl ClientGame {
 
 pub enum ClientGameEvent {
     ButtonState(Button, bool),
-    MouseMove(Vector2<i32>),
+    MouseMove(Vector2<i32>, bool),
 }
 
 pub enum ClientGameCommand {
