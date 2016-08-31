@@ -287,7 +287,7 @@ impl Frontend {
 
         // Calculate the camera projection matrix
         let mut proj = cgmath::perspective(
-            Rad(3.141592 / 2.0),
+            Rad(::std::f32::consts::PI * 0.5),
             { let d = &self.dimensions; d[0] as f32 / d[1] as f32 },
             0.01, 100.0
         );
@@ -298,12 +298,13 @@ impl Frontend {
         // Calculate the camera view matrix
         let cam = world.camera();
         let translation = Matrix4::from_translation(cam.position());
-        let rotation_yaw = Matrix4::from_angle_y(Rad(cam.yaw()));
-        let view = (translation * rotation_yaw).invert().unwrap();
+        let rotation_pitch = Matrix4::from_angle_x(cam.pitch());
+        let rotation_yaw = Matrix4::from_angle_y(cam.yaw());
+        let view = (translation * rotation_yaw * rotation_pitch).invert().unwrap();
 
         // Calculate the teapot model matrix
         let translation = Matrix4::from_translation(Vector3::new(0.0, 0.0, 0.0));
-        let rotation = Matrix4::from_angle_y(Rad(world.teapot()));
+        let rotation = Matrix4::identity();
         let scale = Matrix4::from_scale(0.01);
         let model = translation * rotation * scale;
 
