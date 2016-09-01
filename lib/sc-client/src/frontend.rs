@@ -1,11 +1,13 @@
 use std::sync::Arc;
 use std::time::Duration;
+
 use cgmath::{self, Matrix4, Vector2, Vector3, Rad, SquareMatrix};
 use winit::{Event, ElementState, VirtualKeyCode, WindowBuilder};
 use vulkano;
 use vulkano::buffer::cpu_access::CpuAccessibleBuffer;
-use vulkano::command_buffer::{self, DynamicState, PrimaryCommandBufferBuilder};
+use vulkano::command_buffer::{self, DynamicState, PrimaryCommandBufferBuilder, Submission};
 use vulkano::device::Device;
+use vulkano::descriptor::descriptor_set::DescriptorPool;
 use vulkano::format::D16Unorm;
 use vulkano::framebuffer::{Framebuffer, Subpass};
 use vulkano::image::attachment::AttachmentImage;
@@ -16,9 +18,9 @@ use vulkano::pipeline::raster::{Rasterization, CullMode, FrontFace};
 use vulkano::swapchain::{Swapchain, PresentMode};
 use vulkano_win::{self, VkSurfaceBuild};
 
-use {vs, fs, teapot};
 use sc_client_game::ClientWorld;
 use sc_input_data::Button;
+use {vs, fs, teapot};
 
 mod renderpass {
     single_pass_renderpass!{
@@ -62,12 +64,12 @@ pub struct Frontend {
 
     pipeline: Arc<GraphicsPipeline<TwoBuffersDefinition<teapot::Vertex, teapot::Normal>, pipeline_layout::CustomPipeline, renderpass::CustomRenderPass>>,
     pipeline_layout: Arc<pipeline_layout::CustomPipeline>,
-    descriptor_pool: Arc<vulkano::descriptor::descriptor_set::DescriptorPool>,
+    descriptor_pool: Arc<DescriptorPool>,
 
     framebuffers: Vec<Arc<Framebuffer<renderpass::CustomRenderPass>>>,
     renderpass: Arc<renderpass::CustomRenderPass>,
     swapchain: Arc<Swapchain>,
-    submissions: Vec<Arc<vulkano::command_buffer::Submission>>,
+    submissions: Vec<Arc<Submission>>,
 }
 
 impl Frontend {
